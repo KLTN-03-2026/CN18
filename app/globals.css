@@ -1,0 +1,33 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --color-primary: #c6102e;
+  --color-primary-dark: #8a0b20;
+  --color-accent: #d4af37;
+  --color-accent-light: #ffd700;
+  --color-background-dark: #1a0b0d;
+  --color-surface-dark: #2d1619;
+  --color-border-gold: #7a5c2f;
+  
+  --font-display: var(--font-lexend), sans-serif;
+  --font-body: var(--font-lexend), sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-background-dark text-slate-100 font-body overflow-x-hidden;
+  }
+}
+
+.text-gold-gradient {
+  background: linear-gradient(to right, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+}
+
+.border-gold-gradient {
+  border-image: linear-gradient(to right, #bf953f, #b38728) 1;
+}
