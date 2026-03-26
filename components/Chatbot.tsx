@@ -189,7 +189,8 @@ export default function Chatbot() {
     setIsLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '' });
+      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || 'AIzaSyAKvMjwx37eL16zL4Jf5VTOldjsDgeOpB4';
+      const ai = new GoogleGenAI({ apiKey });
       
       const contents = [
         ...messages.map(m => ({
