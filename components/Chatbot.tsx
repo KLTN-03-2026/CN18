@@ -2,157 +2,308 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Loader2, Dumbbell, Sparkles } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
 
 type Message = {
   role: 'user' | 'assistant';
   content: string;
 };
 
-const GYMVERSE_SYSTEM_PROMPT = `Bạn là "GymVerse AI" – Trợ lý ảo thông minh của hệ thống phòng tập GymVerse. 
-Bạn thân thiện, chuyên nghiệp, và luôn nhiệt tình hỗ trợ khách hàng.
+// ===== CƠ SỞ TRI THỨC GYMVERSE =====
+const KNOWLEDGE_BASE = {
+  goiTap: {
+    keywords: ['gói', 'tập', 'giá', 'bao nhiêu', 'đăng ký', 'phí', 'tư vấn gói', 'membership', 'basic', 'premium', 'vip', 'elite', 'couple', 'đôi', 'cơ bản', 'nâng cao', 'tiền', 'chi phí', 'mua', 'thanh toán'],
+    response: `💰 **CÁC GÓI TẬP TẠI GYMVERSE:**
 
-=== NGUYÊN TẮC TRẢ LỜI ===
-1. Khi người dùng hỏi về GymVerse (gói tập, HLV, lịch tập, cơ sở vật chất, giá cả...): trả lời CHI TIẾT, có cấu trúc rõ ràng, đánh số 1️⃣ 2️⃣ 3️⃣, dùng emoji phù hợp.
-2. Khi hỏi về HLV: PHẢI hỏi lại mục tiêu tập luyện trước (tăng cơ? giảm mỡ? dẻo dai? sức bền?...) rồi mới gợi ý HLV phù hợp.
-3. Khi hỏi ngoài chủ đề GymVerse (thời tiết, giá vàng, tin tức...): trả lời ngắn gọn 1-2 câu, rồi khéo léo dẫn về GymVerse.
-4. Luôn format đẹp: dùng emoji, xuống dòng rõ ràng, đánh số khi liệt kê.
-5. Gợi ý người dùng truy cập các trang trên web khi phù hợp.
+1️⃣ **Gói Cơ Bản (Basic)** - 299.000đ/tháng:
+   • Tập tất cả thiết bị gym
+   • Giờ tập: 5:00 - 22:00
+   • Phòng tắm + tủ khóa
 
-=== THÔNG TIN GYMVERSE ===
+2️⃣ **Gói Nâng Cao (Premium)** - 599.000đ/tháng:
+   • Tất cả quyền lợi Basic
+   • Tham gia lớp Group X (Yoga, Zumba, HIIT...)
+   • 2 buổi PT miễn phí/tháng
+   • Khăn tập + nước uống miễn phí
 
-📍 ĐỊA CHỈ: Hệ thống phòng tập GymVerse - Đẳng Cấp Thể Hình
-🌐 Website: gymverse.vn
+3️⃣ **Gói VIP (Elite)** - 999.000đ/tháng:
+   • Tất cả quyền lợi Premium
+   • PT cá nhân 4 buổi/tháng
+   • Phòng xông hơi + sauna
+   • Ưu tiên đặt lớp + chế độ dinh dưỡng cá nhân
 
-💰 CÁC GÓI TẬP:
-1️⃣ Gói Cơ Bản (Basic) - 299.000đ/tháng:
-   - Tập tất cả thiết bị gym
-   - Giờ tập: 5:00 - 22:00
-   - Phòng tắm + tủ khóa
-   
-2️⃣ Gói Nâng Cao (Premium) - 599.000đ/tháng:
-   - Tất cả quyền lợi Basic
-   - Tham gia lớp Group X (Yoga, Zumba, HIIT...)
-   - 2 buổi PT miễn phí/tháng
-   - Khăn tập + nước uống miễn phí
-   
-3️⃣ Gói VIP (Elite) - 999.000đ/tháng:
-   - Tất cả quyền lợi Premium
-   - PT cá nhân 4 buổi/tháng
-   - Phòng xông hơi + sauna
-   - Ưu tiên đặt lớp
-   - Chế độ dinh dưỡng cá nhân
+4️⃣ **Gói Đôi (Couple)** - 1.599.000đ/tháng:
+   • Quyền lợi VIP cho 2 người
+   • Tiết kiệm 399.000đ so với mua lẻ
 
-4️⃣ Gói Đôi (Couple) - 1.599.000đ/tháng:
-   - Quyền lợi VIP cho 2 người
-   - Tiết kiệm 399.000đ
-   
-🏋️ ĐỘI NGŨ HUẤN LUYỆN VIÊN (10 HLV):
+👉 Bạn quan tâm gói nào? Mình tư vấn chi tiết hơn nhé! 😊`
+  },
 
-👤 1. Trần Quốc Cường (Việt Nam) ⭐ 4.9
-   - Chuyên môn: Sức mạnh & Tăng cơ
-   - Kinh nghiệm: 8 năm | 500+ học viên
-   - Tags: Sức mạnh, Tăng cơ, Powerlifting
-   - Phù hợp: Người muốn TĂNG CƠ, tăng sức mạnh, tập nặng
+  hlv: {
+    keywords: ['hlv', 'huấn luyện', 'pt', 'personal trainer', 'coach', 'giáo viên', 'tư vấn hlv', 'người hướng dẫn', 'trainer'],
+    response: `🏋️ **ĐỘI NGŨ 10 HLV CHUYÊN NGHIỆP TẠI GYMVERSE:**
 
-👤 2. Nguyễn Thị Mai (Việt Nam) ⭐ 5.0
-   - Chuyên môn: Thể hình nữ & Giảm mỡ
-   - Kinh nghiệm: 6 năm | 350+ học viên
-   - Tags: Giảm mỡ, Body Shape, Dinh dưỡng
-   - Phù hợp: Nữ giới muốn GIẢM MỠ, giữ dáng, dinh dưỡng
+Để mình gợi ý HLV phù hợp nhất, bạn cho mình biết **mục tiêu tập luyện** nhé:
 
-👤 3. Kim Min-ho (Hàn Quốc) ⭐ 4.9
-   - Chuyên môn: Hình thể chuẩn Idol
-   - Kinh nghiệm: 7 năm | 420+ học viên
-   - Tags: Body Line, Aesthetic, K-Fitness
-   - Phù hợp: Muốn body THẨM MỸ kiểu Hàn, lean body
+1️⃣ **Tăng cơ / Sức mạnh** → HLV Trần Quốc Cường ⭐4.9 (8 năm KN)
+2️⃣ **Giảm mỡ / Giữ dáng** → HLV Nguyễn Thị Mai ⭐5.0 (6 năm KN) 
+3️⃣ **Body thẩm mỹ kiểu Hàn** → HLV Kim Min-ho ⭐4.9 (7 năm KN)
+4️⃣ **Dẻo dai / Yoga** → HLV Yuki Tanaka ⭐5.0 (10 năm KN)
+5️⃣ **CrossFit / Cường độ cao** → HLV Marcus Adebayo ⭐4.8 (12 năm KN)
+6️⃣ **Sức bền / Cardio** → HLV Aisha Bello ⭐4.9 (6 năm KN)
+7️⃣ **Kỹ thuật Bodybuilding** → HLV Alexander Schmidt ⭐4.7 (15 năm KN)
+8️⃣ **Lớp nhóm / Zumba** → HLV Sarah Jenkins ⭐4.9 (8 năm KN)
+9️⃣ **Functional / Calisthenics** → HLV Mateo Silva ⭐4.8 (9 năm KN)
+🔟 **Yoga + Thể hình nữ** → HLV Li Wei-Hsuan ⭐5.0 (7 năm KN)
 
-👤 4. Yuki Tanaka (Nhật Bản) ⭐ 5.0
-   - Chuyên môn: Thể hình & Dẻo dai
-   - Kinh nghiệm: 10 năm | 600+ học viên
-   - Tags: Flexibility, Yoga, Pilates
-   - Phù hợp: Muốn DẺO DAI, yoga + gym kết hợp
+Bạn muốn tập theo hướng nào? Mình sẽ giới thiệu chi tiết hơn! 💪`
+  },
 
-👤 5. Marcus "The Machine" Adebayo ⭐ 4.8
-   - Chuyên môn: Sức mạnh vượt trội
-   - Kinh nghiệm: 12 năm | 800+ học viên
-   - Tags: Strength, CrossFit, HIIT
-   - Phù hợp: Muốn tập CƯỜNG ĐỘ CAO, CrossFit, vượt giới hạn
+  tangCo: {
+    keywords: ['tăng cơ', 'tăng sức mạnh', 'cơ bắp', 'muscle', 'powerlifting', 'nặng', 'bulk'],
+    response: `💪 **GỢI Ý HLV PHÙ HỢP CHO MỤC TIÊU TĂNG CƠ:**
 
-👤 6. Aisha Bello ⭐ 4.9
-   - Chuyên môn: Sức bền & Thể lực
-   - Kinh nghiệm: 6 năm | 380+ học viên
-   - Tags: Endurance, Cardio, Functional
-   - Phù hợp: Muốn tăng SỨC BỀN, cardio, thể lực tổng thể
+⭐ **TOP 1: Trần Quốc Cường** (Việt Nam) - ⭐4.9
+   • Chuyên môn: Sức mạnh & Tăng cơ, Powerlifting
+   • 8 năm kinh nghiệm | 500+ học viên
+   • Phù hợp: Người muốn tăng cơ, tập nặng chuyên sâu
 
-👤 7. Alexander "Alex" Schmidt (Đức) ⭐ 4.7
-   - Chuyên môn: Huấn luyện kỹ thuật
-   - Kinh nghiệm: 15 năm | 1000+ học viên
-   - Tags: Technique, Bodybuilding, Rehab
-   - Phù hợp: Muốn tập KỸ THUẬT CHUẨN, bodybuilding chuyên sâu
+⭐ **TOP 2: Marcus "The Machine" Adebayo** - ⭐4.8
+   • Chuyên môn: Sức mạnh vượt trội, CrossFit
+   • 12 năm kinh nghiệm | 800+ học viên
+   • Phù hợp: Tập cường độ cao, vượt giới hạn bản thân
 
-👤 8. Sarah Jenkins ⭐ 4.9
-   - Chuyên môn: Group Fitness & Thể hình nữ
-   - Kinh nghiệm: 8 năm | 650+ học viên
-   - Tags: Group X, Zumba, Body Pump
-   - Phù hợp: Thích tập NHÓM, Zumba, Body Pump
+⭐ **TOP 3: Alexander Schmidt** (Đức) - ⭐4.7
+   • Chuyên môn: Kỹ thuật Bodybuilding chuyên sâu
+   • 15 năm kinh nghiệm | 1000+ học viên
+   • Phù hợp: Kỹ thuật chuẩn, bodybuilding chuyên nghiệp
 
-👤 9. Mateo Silva (Brazil) ⭐ 4.8
-   - Chuyên môn: Functional Training
-   - Kinh nghiệm: 9 năm | 450+ học viên
-   - Tags: Functional, Outdoor, Calisthenics
-   - Phù hợp: Muốn tập CHỨC NĂNG, outdoor, calisthenics
+👉 Bạn muốn đặt lịch tập thử với HLV nào? Truy cập trang **Huấn luyện viên** để xem chi tiết nhé! 🏋️`
+  },
 
-👤 10. Li Wei-Hsuan (Đài Loan-Việt) ⭐ 5.0
-   - Chuyên môn: Yoga & Thể hình nữ
-   - Kinh nghiệm: 7 năm | 380+ học viên
-   - Tags: Yoga, Women Fitness, Meditation
-   - Phù hợp: Nữ giới muốn YOGA kết hợp thể hình
+  giamMo: {
+    keywords: ['giảm mỡ', 'giảm cân', 'giữ dáng', 'ốm', 'gầy', 'diet', 'lose weight', 'body shape', 'thon', 'nữ'],
+    response: `🔥 **GỢI Ý HLV PHÙ HỢP CHO MỤC TIÊU GIẢM MỠ / GIỮ DÁNG:**
 
-📅 LỊCH CÁC LỚP TẬP NHÓM:
-- Thứ 2: Hatha Yoga (06:00) | Body Combat Đốt Mỡ (18:30) | Zumba Dance Party (19:30)
-- Thứ 3: Đạp Xe Tốc Độ (07:00) | Sức Mạnh Toàn Diện (18:00)
-- Thứ 4: Pilates Căn Bản (06:30) | Tăng Cơ Chuyên Sâu (17:00)
-- Thứ 5: Vinyasa Flow Yoga (19:00) | Functional Training (08:00)
-- Thứ 6: Cardio Đốt Mỡ (18:30) | Giảm Mỡ Cho Nữ (16:00)
-- Thứ 7: Zumba Cuối Tuần (08:00) | Kỹ Thuật Nâng Cao (10:00)
-- Chủ Nhật: Yoga Phục Hồi (09:30)
+⭐ **TOP 1: Nguyễn Thị Mai** (Việt Nam) - ⭐5.0
+   • Chuyên môn: Thể hình nữ & Giảm mỡ, Dinh dưỡng
+   • 6 năm kinh nghiệm | 350+ học viên
+   • Phù hợp: Nữ giới muốn giảm mỡ, giữ dáng, tư vấn dinh dưỡng
 
-🏢 CƠ SỞ VẬT CHẤT:
-- Khu tập Gym hiện đại với thiết bị nhập khẩu từ Mỹ và châu Âu
-- 2 Studio Group X (Studio 1 & Studio 2) cho lớp nhóm
-- Phòng Spinning / Cycling chuyên dụng
-- Phòng xông hơi & Sauna (gói VIP)
-- Khu vực Functional Training ngoài trời
-- Phòng tắm cao cấp với tủ khóa cá nhân
-- Quầy bar dinh dưỡng phục vụ protein shake, nước ép
+⭐ **TOP 2: Aisha Bello** - ⭐4.9
+   • Chuyên môn: Sức bền & Cardio, Functional Training
+   • 6 năm kinh nghiệm | 380+ học viên
+   • Phù hợp: Tăng sức bền, cardio đốt mỡ hiệu quả
 
-🎁 CHƯƠNG TRÌNH KHUYẾN MÃI:
-- Hệ thống Điểm Lì Xì: Điểm danh mỗi ngày nhận 50 điểm, đổi quà hấp dẫn
-- Voucher NEWBIE2026: Giảm cho hội viên mới
-- Voucher TET2026: Ưu đãi Tết
+⭐ **TOP 3: Li Wei-Hsuan** (Đài Loan-Việt) - ⭐5.0
+   • Chuyên môn: Yoga & Thể hình nữ
+   • 7 năm kinh nghiệm | 380+ học viên
+   • Phù hợp: Yoga kết hợp thể hình, giảm mỡ nhẹ nhàng
 
-=== QUY TẮC TƯ VẤN HLV ===
-Khi người dùng hỏi về HLV, BẮT BUỘC phải hỏi lại:
-"Bạn muốn tập với mục tiêu gì? Hãy chọn 1 trong các mục tiêu sau:
-1️⃣ Tăng cơ / Tăng sức mạnh
-2️⃣ Giảm mỡ / Giữ dáng
-3️⃣ Dẻo dai / Yoga / Pilates
-4️⃣ Sức bền / Cardio / Thể lực
-5️⃣ Tập nhóm / Lớp Group X
-6️⃣ Hình thể thẩm mỹ (Aesthetic)
-7️⃣ Kỹ thuật chuyên sâu / Bodybuilding"
+💡 **Gợi ý gói tập:** Gói **Premium (599K)** với 2 buổi PT miễn phí/tháng sẽ rất phù hợp! 🌟`
+  },
 
-Sau đó PHẢI gợi ý 2-3 HLV phù hợp nhất với mục tiêu đó, kèm lý do chi tiết.
+  yoga: {
+    keywords: ['yoga', 'dẻo dai', 'pilates', 'linh hoạt', 'flexibility', 'thiền', 'meditation', 'thư giãn'],
+    response: `🧘 **GỢI Ý HLV PHÙ HỢP CHO YOGA / DẺO DAI:**
 
-=== QUY TẮC TƯ VẤN GÓI TẬP ===
-Khi hỏi về gói tập, hỏi lại:
-"Bạn cần tư vấn gói tập phù hợp? Cho mình biết:
-1️⃣ Bạn muốn tự tập gym hay tham gia lớp nhóm?
-2️⃣ Bạn có muốn có HLV cá nhân (PT) không?
-3️⃣ Ngân sách mỗi tháng bạn dự kiến bao nhiêu?"
+⭐ **TOP 1: Yuki Tanaka** (Nhật Bản) - ⭐5.0
+   • Chuyên môn: Thể hình & Dẻo dai, Yoga, Pilates
+   • 10 năm kinh nghiệm | 600+ học viên
+   • Phù hợp: Muốn dẻo dai, yoga + gym kết hợp
 
-Rồi gợi ý gói phù hợp nhất.`;
+⭐ **TOP 2: Li Wei-Hsuan** (Đài Loan-Việt) - ⭐5.0
+   • Chuyên môn: Yoga & Thể hình nữ, Meditation
+   • 7 năm kinh nghiệm | 380+ học viên
+   • Phù hợp: Nữ giới muốn yoga kết hợp thể hình
+
+📅 **Lịch lớp Yoga trong tuần:**
+   • Thứ 2: Hatha Yoga (06:00 sáng)
+   • Thứ 5: Vinyasa Flow Yoga (19:00 tối)
+   • Chủ Nhật: Yoga Phục Hồi (09:30 sáng)
+
+👉 Truy cập trang **Lịch tập** để đăng ký lớp nhé! 🙏`
+  },
+
+  lichTap: {
+    keywords: ['lịch', 'lớp nhóm', 'group', 'class', 'zumba', 'hiit', 'combat', 'spinning', 'đạp xe', 'cardio', 'schedule'],
+    response: `📅 **LỊCH CÁC LỚP TẬP NHÓM TRONG TUẦN:**
+
+🟢 **Thứ 2:**
+   • 06:00 - Hatha Yoga
+   • 18:30 - Body Combat Đốt Mỡ
+   • 19:30 - Zumba Dance Party 🎶
+
+🟡 **Thứ 3:**
+   • 07:00 - Đạp Xe Tốc Độ (Spinning)
+   • 18:00 - Sức Mạnh Toàn Diện
+
+🔵 **Thứ 4:**
+   • 06:30 - Pilates Căn Bản
+   • 17:00 - Tăng Cơ Chuyên Sâu
+
+🟣 **Thứ 5:**
+   • 08:00 - Functional Training
+   • 19:00 - Vinyasa Flow Yoga
+
+🔴 **Thứ 6:**
+   • 16:00 - Giảm Mỡ Cho Nữ
+   • 18:30 - Cardio Đốt Mỡ
+
+🟠 **Thứ 7:**
+   • 08:00 - Zumba Cuối Tuần
+   • 10:00 - Kỹ Thuật Nâng Cao
+
+⚪ **Chủ Nhật:**
+   • 09:30 - Yoga Phục Hồi
+
+👉 Truy cập trang **Lịch tập** trên website để đặt lịch ngay! 📝`
+  },
+
+  coSoVatChat: {
+    keywords: ['cơ sở', 'vật chất', 'thiết bị', 'máy', 'phòng', 'facility', 'studio', 'sauna', 'xông hơi', 'trang thiết bị', 'máy chạy'],
+    response: `🏢 **CƠ SỞ VẬT CHẤT TẠI GYMVERSE:**
+
+🏋️ **Khu tập Gym chính:**
+   • Thiết bị nhập khẩu từ Mỹ và châu Âu
+   • Đầy đủ máy tập: máy chạy bộ, xe đạp, máy tạ, dây kéo...
+
+🎵 **2 Studio Group X:**
+   • Studio 1 & Studio 2 riêng biệt
+   • Trang bị âm thanh, ánh sáng chuyên nghiệp cho lớp nhóm
+
+🚴 **Phòng Spinning / Cycling:**
+   • Xe đạp chuyên dụng
+   • Lớp đạp xe cường độ cao
+
+♨️ **Phòng xông hơi & Sauna:**
+   • Dành cho hội viên gói VIP
+   • Giúp thư giãn sau buổi tập
+
+🌳 **Khu Functional Training:**
+   • Không gian ngoài trời thoáng mát
+   • Tập luyện chức năng đa dạng
+
+🧴 **Tiện ích khác:**
+   • Phòng tắm cao cấp + tủ khóa cá nhân
+   • Quầy bar dinh dưỡng: protein shake, nước ép tươi
+
+👉 Truy cập trang **Cơ sở vật chất** để xem hình ảnh chi tiết! 📸`
+  },
+
+  khuyenMai: {
+    keywords: ['khuyến mãi', 'giảm giá', 'ưu đãi', 'voucher', 'mã', 'discount', 'sale', 'điểm', 'quà', 'lì xì', 'reward'],
+    response: `🎁 **CHƯƠNG TRÌNH KHUYẾN MÃI & ƯU ĐÃI:**
+
+🎊 **Hệ thống Điểm Lì Xì:**
+   • Điểm danh mỗi ngày nhận **50 điểm**
+   • Tích lũy điểm để đổi quà hấp dẫn:
+     - 🧴 Bình nước thể thao
+     - 🎽 Áo tập GymVerse
+     - 🎧 Tai nghe thể thao
+     - 💊 Bộ Supplement cao cấp
+
+🏷️ **Voucher đang có:**
+   • **NEWBIE2026** - Giảm giá cho hội viên mới đăng ký
+   • **TET2026** - Ưu đãi đặc biệt mùa Tết
+
+💡 **Mẹo tiết kiệm:** Đăng ký **Gói Đôi (Couple)** tiết kiệm đến 399.000đ so với mua 2 gói VIP riêng lẻ!
+
+👉 Truy cập **Dashboard** sau khi đăng nhập để kiểm tra điểm tích lũy! 🌟`
+  },
+
+  chao: {
+    keywords: ['xin chào', 'chào', 'hello', 'hi', 'hey', 'hola', 'ê', 'ơi', 'có ai không'],
+    response: `👋 Chào bạn! Rất vui được gặp bạn tại **GymVerse**! 😊
+
+Mình có thể hỗ trợ bạn:
+1️⃣ **Tư vấn gói tập** phù hợp với nhu cầu
+2️⃣ **Giới thiệu HLV** theo mục tiêu tập luyện
+3️⃣ **Xem lịch** các lớp tập nhóm
+4️⃣ **Thông tin cơ sở vật chất** hiện đại
+
+Bạn cần hỗ trợ gì nào? Cứ hỏi thoải mái nhé! 💪`
+  },
+
+  camOn: {
+    keywords: ['cảm ơn', 'thanks', 'thank', 'tks', 'cám ơn', 'ok', 'được rồi', 'tạm biệt', 'bye'],
+    response: `😊 Không có gì nha bạn! Rất vui vì đã hỗ trợ được bạn!
+
+Nếu cần thêm thông tin gì, cứ quay lại hỏi mình bất cứ lúc nào nhé! GymVerse AI luôn sẵn sàng hỗ trợ 24/7! 💪🔥
+
+👉 Đừng quên truy cập website để **đăng ký** và bắt đầu hành trình thể hình cùng GymVerse! 🏋️`
+  },
+
+  dangKy: {
+    keywords: ['đăng ký', 'tạo tài khoản', 'sign up', 'register', 'bắt đầu', 'tham gia', 'gia nhập'],
+    response: `📝 **HƯỚNG DẪN ĐĂNG KÝ TÀI KHOẢN GYMVERSE:**
+
+**Bước 1:** Nhấn nút **"Đăng ký"** ở góc trên bên phải website
+**Bước 2:** Điền thông tin cá nhân (Họ tên, Email, Số điện thoại, Mật khẩu)
+**Bước 3:** Xác nhận email và đăng nhập
+
+Sau khi đăng ký, bạn có thể:
+✅ Chọn gói tập phù hợp
+✅ Đặt lịch các lớp nhóm
+✅ Liên hệ HLV cá nhân
+✅ Tích điểm đổi quà hấp dẫn
+
+💡 **Mẹo:** Sử dụng mã **NEWBIE2026** khi thanh toán để nhận ưu đãi hội viên mới!
+
+👉 Bấm vào nút **Đăng ký** trên thanh menu ngay bây giờ nhé! 🚀`
+  },
+
+  lienHe: {
+    keywords: ['liên hệ', 'hotline', 'số điện thoại', 'email', 'địa chỉ', 'contact', 'hỗ trợ', 'phản hồi', 'góp ý'],
+    response: `📞 **THÔNG TIN LIÊN HỆ GYMVERSE:**
+
+📍 **Địa chỉ:** Hệ thống phòng tập GymVerse - Đẳng Cấp Thể Hình
+🌐 **Website:** gymverse.vn
+📧 **Email:** support@gymverse.vn
+
+💬 Bạn cũng có thể gửi phản hồi trực tiếp qua trang **Liên hệ** trên website. Đội ngũ GymVerse sẽ phản hồi trong vòng 24h!
+
+👉 Truy cập trang **Liên hệ** ngay trên thanh menu nhé! 📨`
+  }
+};
+
+// Tìm câu trả lời phù hợp nhất từ cơ sở tri thức
+function findBestResponse(userMessage: string): string {
+  const msg = userMessage.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const msgOriginal = userMessage.toLowerCase();
+  
+  let bestMatch = { key: '', score: 0 };
+  
+  for (const [key, data] of Object.entries(KNOWLEDGE_BASE)) {
+    let score = 0;
+    for (const keyword of data.keywords) {
+      const kw = keyword.toLowerCase();
+      const kwNormalized = kw.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (msgOriginal.includes(kw) || msg.includes(kwNormalized)) {
+        score += kw.length; // Từ khóa dài hơn = chính xác hơn
+      }
+    }
+    if (score > bestMatch.score) {
+      bestMatch = { key, score };
+    }
+  }
+  
+  if (bestMatch.score > 0) {
+    return KNOWLEDGE_BASE[bestMatch.key as keyof typeof KNOWLEDGE_BASE].response;
+  }
+  
+  // Fallback: trả lời chung khi không tìm thấy từ khóa
+  return `Cảm ơn bạn đã hỏi! 😊
+
+Mình có thể hỗ trợ bạn về các chủ đề sau:
+1️⃣ **Gói tập & Giá cả** - Gõ "gói tập" hoặc "giá"
+2️⃣ **Huấn luyện viên** - Gõ "HLV" hoặc "huấn luyện viên"
+3️⃣ **Lịch lớp nhóm** - Gõ "lịch tập" hoặc "lớp nhóm"
+4️⃣ **Cơ sở vật chất** - Gõ "cơ sở" hoặc "thiết bị"
+5️⃣ **Khuyến mãi & Điểm thưởng** - Gõ "khuyến mãi" hoặc "voucher"
+6️⃣ **Đăng ký tài khoản** - Gõ "đăng ký"
+
+Hoặc bạn có thể truy cập trang **Liên hệ** trên website để được tư vấn trực tiếp nhé! 💪`;
+}
 
 // Quick suggestion chips
 const QUICK_SUGGESTIONS = [
@@ -189,32 +340,28 @@ export default function Chatbot() {
     setIsLoading(true);
 
     try {
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || 'AIzaSyAKvMjwx37eL16zL4Jf5VTOldjsDgeOpB4';
-      const ai = new GoogleGenAI({ apiKey });
-      
-      const contents = [
-        ...messages.map(m => ({
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: m.content }]
-        })),
-        { role: 'user', parts: [{ text: userMessage }] }
-      ];
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: contents as any,
-        config: {
-          systemInstruction: GYMVERSE_SYSTEM_PROMPT,
-          maxOutputTokens: 1024,
-          temperature: 0.7,
-        }
+      // Thử gọi API server-side (Gemini AI) trước
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: messages,
+          userMessage: userMessage,
+        }),
       });
 
-      const responseText = response.text || 'Xin lỗi, mình không thể trả lời lúc này. Bạn hãy thử lại nhé! 🙏';
-      setMessages(prev => [...prev, { role: 'assistant', content: responseText }]);
-    } catch (error) {
-      console.error('Chat error:', error);
-      setMessages(prev => [...prev, { role: 'assistant', content: '❌ Đã có lỗi xảy ra. Vui lòng thử lại sau nhé!\n\nNếu cần hỗ trợ gấp, bạn có thể liên hệ qua trang **Liên hệ** trên website.' }]);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'API unavailable');
+      }
+
+      setMessages(prev => [...prev, { role: 'assistant', content: data.text }]);
+    } catch {
+      // Fallback: Sử dụng cơ sở tri thức nội bộ (Knowledge Base)
+      // Đảm bảo chatbot LUÔN trả lời dù API có lỗi
+      const response = findBestResponse(userMessage);
+      setMessages(prev => [...prev, { role: 'assistant', content: response }]);
     } finally {
       setIsLoading(false);
     }
@@ -228,9 +375,7 @@ export default function Chatbot() {
 
   // Format message content with basic markdown-like styling
   const formatMessage = (content: string) => {
-    // Bold text
     let formatted = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    // Line breaks
     formatted = formatted.replace(/\n/g, '<br/>');
     return formatted;
   };
@@ -244,7 +389,6 @@ export default function Chatbot() {
       >
         <MessageCircle className="w-6 h-6 group-hover:hidden" />
         <Sparkles className="w-6 h-6 hidden group-hover:block animate-pulse" />
-        {/* Pulse effect */}
         <span className="absolute w-full h-full rounded-full bg-primary/30 animate-ping" />
       </button>
 
