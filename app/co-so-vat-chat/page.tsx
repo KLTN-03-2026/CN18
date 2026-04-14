@@ -174,14 +174,15 @@ export default function FacilitiesPage() {
           </button>
           
           <div className="w-full max-w-5xl aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl relative border border-white/10">
-            <iframe
+            <video
               className="absolute inset-0 w-full h-full"
-              src="https://www.youtube.com/embed/S_x4_QrAMiI?autoplay=1&mute=0&controls=1"
-              title="Cơ Sở Vật Chất GymVerse"
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            ></iframe>
+              src="/gym-tour.mp4"
+              controls
+              autoPlay
+              playsInline
+            >
+              Trình duyệt của bạn không hỗ trợ phát video.
+            </video>
           </div>
         </div>
       )}

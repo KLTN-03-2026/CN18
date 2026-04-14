@@ -6,26 +6,32 @@ import { Users, Dumbbell, LogOut, LayoutDashboard, Loader2, TrendingUp, DollarSi
 import { supabase } from '@/lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts';
 
-// Mock data for charts
-const revenueData = [
-  { name: 'T1', total: 12000000 },
-  { name: 'T2', total: 18000000 },
-  { name: 'T3', total: 15000000 },
-  { name: 'T4', total: 25000000 },
-  { name: 'T5', total: 22000000 },
-  { name: 'T6', total: 30000000 },
-  { name: 'T7', total: 28000000 },
-];
+// Helper: parse Vietnamese price strings to number
+const parsePriceToNumber = (priceStr: string): number => {
+  if (!priceStr) return 0;
+  const str = priceStr.toString().trim();
+  if (str.includes('Tr')) {
+    const num = parseFloat(str.replace(/[^0-9.]/g, ''));
+    return isNaN(num) ? 0 : num * 1000000;
+  }
+  if (str.toUpperCase().includes('K')) {
+    const num = parseFloat(str.replace(/[^0-9.]/g, ''));
+    return isNaN(num) ? 0 : num * 1000;
+  }
+  if (str.toUpperCase().includes('M') && !str.includes('Tr')) {
+    const num = parseFloat(str.replace(/[^0-9.]/g, ''));
+    return isNaN(num) ? 0 : num * 1000000;
+  }
+  const cleaned = str.replace(/[^\d]/g, '');
+  return parseInt(cleaned) || 0;
+};
 
-const checkinData = [
-  { name: 'T2', count: 120 },
-  { name: 'T3', count: 150 },
-  { name: 'T4', count: 180 },
-  { name: 'T5', count: 140 },
-  { name: 'T6', count: 200 },
-  { name: 'T7', count: 250 },
-  { name: 'CN', count: 190 },
-];
+const formatVNDShort = (amount: number): string => {
+  if (amount >= 1000000000) return (amount / 1000000000).toFixed(1).replace('.0', '') + 'B';
+  if (amount >= 1000000) return (amount / 1000000).toFixed(1).replace('.0', '') + 'M';
+  if (amount >= 1000) return (amount / 1000).toFixed(0) + 'K';
+  return amount.toString();
+};
 
 export default function AdminPage() {
   const router = useRouter();
@@ -37,6 +43,19 @@ export default function AdminPage() {
   const [replyForm, setReplyForm] = useState({ id: null, message: '', email: '' });
   const [reviewReplyForm, setReviewReplyForm] = useState<{id: number | null, message: string, user_email: string}>({ id: null, message: '', user_email: '' });
   const [isMounted, setIsMounted] = useState(false);
+
+  // Overview dashboard state
+  const [revenueFilter, setRevenueFilter] = useState<'week' | 'month' | 'year'>('month');
+  const [checkinFilter, setCheckinFilter] = useState<'week' | 'month' | 'year'>('week');
+  const [revenueChartData, setRevenueChartData] = useState<any[]>([]);
+  const [checkinChartData, setCheckinChartData] = useState<any[]>([]);
+  const [overviewStats, setOverviewStats] = useState({
+    totalUsers: 0,
+    monthRevenue: 0,
+    todayCheckins: 0,
+    activeClasses: 0,
+    paidOrdersThisMonth: 0,
+  });
 
   // Promotions state
   const defaultVouchers = [
@@ -258,10 +277,40 @@ export default function AdminPage() {
         }
 
         const { data: tData, error: tError } = await supabase.from('fitnexus_trainers').select('*').order('id', { ascending: false });
-        if (!tError && tData) {
+        if (!tError && tData && tData.length > 0) {
           setTrainers(tData);
         } else {
-          setTrainers([]);
+          // Auto-seed 10 HLV mặc định nếu database trống
+          const defaultTrainers = [
+            { name: 'Trần Quốc Cường', specialty: 'Sức mạnh & Tăng cơ', image: '/trainers/cuong.png', rating: 4.9, description: 'Chuyên gia về sức mạnh và tăng cơ với hơn 8 năm kinh nghiệm. Đã giúp hơn 500 hội viên đạt được mục tiêu thể hình.', tags: ['Sức mạnh', 'Tăng cơ', 'Powerlifting'], experience_years: 8, students_count: 500, status: 'active' },
+            { name: 'Nguyễn Thị Mai', specialty: 'Thể hình nữ & Giảm mỡ', image: '/trainers/mai.png', rating: 5.0, description: 'Chuyên gia thể hình nữ với chế độ dinh dưỡng cá nhân hóa. Giúp chị em tự tin với vóc dáng chuẩn trong dịp Tết.', tags: ['Giảm mỡ', 'Body Shape', 'Dinh dưỡng'], experience_years: 6, students_count: 350, status: 'active' },
+            { name: 'Kim Min-ho', specialty: 'Hình thể chuẩn Idol', image: '/trainers/minho.png', rating: 4.9, description: 'HLV đến từ Hàn Quốc, chuyên xây dựng hình thể chuẩn idol K-pop. Phương pháp tập luyện khoa học, hiệu quả nhanh.', tags: ['Body Line', 'Aesthetic', 'K-Fitness'], experience_years: 7, students_count: 420, status: 'active' },
+            { name: 'Yuki Tanaka', specialty: 'Thể hình & Dẻo dai', image: '/trainers/yuki.png', rating: 5.0, description: 'HLV người Nhật chuyên kết hợp thể hình và yoga, giúp tăng sức mạnh đồng thời duy trì sự dẻo dai và linh hoạt.', tags: ['Flexibility', 'Yoga', 'Pilates'], experience_years: 10, students_count: 600, status: 'active' },
+            { name: 'Marcus Adebayo', specialty: 'Sức mạnh vượt trội', image: '/trainers/marcus.png', rating: 4.8, description: 'Biệt danh "The Machine" – chuyên gia sức mạnh với phương pháp huấn luyện cường độ cao, giúp bạn vượt qua giới hạn bản thân.', tags: ['Strength', 'CrossFit', 'HIIT'], experience_years: 12, students_count: 800, status: 'active' },
+            { name: 'Aisha Bello', specialty: 'Sức bền & Thể lực', image: '/trainers/aisha.png', rating: 4.9, description: 'HLV năng động chuyên về sức bền và thể lực toàn diện. Các lớp của Aisha luôn tràn đầy năng lượng và cảm hứng.', tags: ['Endurance', 'Cardio', 'Functional'], experience_years: 6, students_count: 380, status: 'active' },
+            { name: 'Alexander Schmidt', specialty: 'Huấn luyện kỹ thuật', image: '/trainers/alexander.png', rating: 4.7, description: 'HLV người Đức chuyên nghiệp, tập trung vào kỹ thuật tập luyện chuẩn xác và chương trình periodization khoa học.', tags: ['Technique', 'Bodybuilding', 'Rehab'], experience_years: 15, students_count: 1000, status: 'active' },
+            { name: 'Sarah Jenkins', specialty: 'Group Fitness & Thể hình nữ', image: '/trainers/sarah.png', rating: 4.9, description: 'HLV năng nổ dẫn dắt các lớp tập nhóm. Chuyên về thể hình nữ với phương pháp vui nhộn nhưng hiệu quả cao.', tags: ['Group X', 'Zumba', 'Body Pump'], experience_years: 8, students_count: 650, status: 'active' },
+            { name: 'Mateo Silva', specialty: 'Functional Training', image: '/trainers/mateo.png', rating: 4.8, description: 'HLV người Brazil năng động, chuyên về huấn luyện chức năng và thể hình ngoài trời. Mang đến năng lượng tích cực.', tags: ['Functional', 'Outdoor', 'Calisthenics'], experience_years: 9, students_count: 450, status: 'active' },
+            { name: 'Li Wei-Hsuan', specialty: 'Yoga & Thể hình nữ', image: '/trainers/liwei.png', rating: 5.0, description: 'HLV gốc Đài Loan-Việt, kết hợp yoga và thể hình cho nữ giới, mang đến sự cân bằng giữa sức mạnh và uyển chuyển.', tags: ['Yoga', 'Women Fitness', 'Meditation'], experience_years: 7, students_count: 380, status: 'active' },
+          ];
+          
+          try {
+            const { data: seeded, error: seedError } = await supabase
+              .from('fitnexus_trainers')
+              .insert(defaultTrainers)
+              .select();
+            
+            if (!seedError && seeded) {
+              setTrainers(seeded.reverse());
+              console.log('✅ Đã seed 10 HLV vào database!');
+            } else {
+              console.error('Seed error:', seedError);
+              setTrainers([]);
+            }
+          } catch (seedErr) {
+            console.error('Seed error:', seedErr);
+            setTrainers([]);
+          }
         }
         
         const { data: oData, error: oError } = await supabase.from('fitnexus_orders').select('*').order('created_at', { ascending: false });
@@ -284,6 +333,222 @@ export default function AdminPage() {
 
     checkAdminAndFetchData();
   }, [router]);
+
+  // Fetch overview stats from real data
+  useEffect(() => {
+    const fetchOverviewData = async () => {
+      try {
+        // 1. Total users
+        const { count: userCount } = await supabase.from('fitnexus_users').select('*', { count: 'exact', head: true });
+        
+        // 2. Orders this month (for revenue)
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        const { data: monthOrders } = await supabase.from('fitnexus_orders').select('*').gte('created_at', startOfMonth);
+        
+        // Get plan prices for fallback
+        const { data: plansData } = await supabase.from('fitnexus_plans').select('id, name, price');
+        const planPriceMap: Record<string, number> = {};
+        plansData?.forEach((p: any) => {
+          planPriceMap[p.name?.toLowerCase()] = parsePriceToNumber(p.price);
+          planPriceMap[p.id?.toString()] = parsePriceToNumber(p.price);
+        });
+        
+        let monthRevenue = 0;
+        let paidCount = 0;
+        if (monthOrders) {
+          monthOrders.forEach((o: any) => {
+            if (o.status === 'paid' || o.status === 'completed') {
+              paidCount++;
+              let amount = parsePriceToNumber(o.amount || '0');
+              // If amount is suspiciously low, lookup from plan
+              if (amount < 10000 && o.plan_name) {
+                const planAmount = planPriceMap[o.plan_name.toLowerCase()] || planPriceMap[o.plan_id?.toString()];
+                if (planAmount) amount = planAmount;
+              }
+              monthRevenue += amount;
+            }
+          });
+        }
+        
+        // 3. Today's check-ins
+        const todayStr = now.toISOString().split('T')[0];
+        const { count: todayCheckins } = await supabase.from('fitnexus_checkins').select('*', { count: 'exact', head: true }).eq('date', todayStr);
+        
+        // 4. Active classes (classes scheduled today)
+        const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+        const todayDay = dayNames[now.getDay()];
+        const { count: classCount } = await supabase.from('fitnexus_classes').select('*', { count: 'exact', head: true }).eq('day', todayDay);
+        
+        setOverviewStats({
+          totalUsers: userCount || 0,
+          monthRevenue,
+          todayCheckins: todayCheckins || 0,
+          activeClasses: classCount || 0,
+          paidOrdersThisMonth: paidCount,
+        });
+      } catch (err) {
+        console.error('Error fetching overview:', err);
+      }
+    };
+    
+    if (!isLoading) fetchOverviewData();
+  }, [isLoading, orders]);
+
+  // Build revenue chart data based on filter
+  useEffect(() => {
+    const buildRevenueChart = async () => {
+      try {
+        const now = new Date();
+        let startDate: Date;
+        const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+        const monthNames = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
+        
+        if (revenueFilter === 'week') {
+          // Last 7 days
+          startDate = new Date(now);
+          startDate.setDate(now.getDate() - 6);
+        } else if (revenueFilter === 'month') {
+          // Start of current month
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        } else {
+          // Start of current year
+          startDate = new Date(now.getFullYear(), 0, 1);
+        }
+        
+        const { data: chartOrders } = await supabase
+          .from('fitnexus_orders')
+          .select('*')
+          .gte('created_at', startDate.toISOString())
+          .in('status', ['paid', 'completed']);
+        
+        // Get plan prices for fallback on legacy orders
+        const { data: plData } = await supabase.from('fitnexus_plans').select('id, name, price');
+        const plMap: Record<string, number> = {};
+        plData?.forEach((p: any) => {
+          plMap[p.name?.toLowerCase()] = parsePriceToNumber(p.price);
+          plMap[p.id?.toString()] = parsePriceToNumber(p.price);
+        });
+        const getOrderAmount = (o: any): number => {
+          let amt = parsePriceToNumber(o.amount || '0');
+          if (amt < 10000 && o.plan_name) {
+            const fallback = plMap[o.plan_name.toLowerCase()] || plMap[o.plan_id?.toString()];
+            if (fallback) amt = fallback;
+          }
+          return amt;
+        };
+        
+        if (revenueFilter === 'week') {
+          // Group by day of week
+          const grouped: Record<string, number> = {};
+          for (let i = 0; i < 7; i++) {
+            const d = new Date(startDate);
+            d.setDate(startDate.getDate() + i);
+            const key = `${d.getDate()}/${d.getMonth() + 1}`;
+            grouped[key] = 0;
+          }
+          chartOrders?.forEach((o: any) => {
+            const d = new Date(o.created_at);
+            const key = `${d.getDate()}/${d.getMonth() + 1}`;
+            if (grouped[key] !== undefined) {
+              grouped[key] += getOrderAmount(o);
+            }
+          });
+          setRevenueChartData(Object.entries(grouped).map(([name, total]) => ({ name, total })));
+        } else if (revenueFilter === 'month') {
+          // Group by week of month
+          const weeks: Record<string, number> = { 'Tuần 1': 0, 'Tuần 2': 0, 'Tuần 3': 0, 'Tuần 4': 0, 'Tuần 5': 0 };
+          chartOrders?.forEach((o: any) => {
+            const d = new Date(o.created_at);
+            const weekNum = Math.ceil(d.getDate() / 7);
+            const key = `Tuần ${Math.min(weekNum, 5)}`;
+            weeks[key] += getOrderAmount(o);
+          });
+          setRevenueChartData(Object.entries(weeks).filter(([, v]) => true).map(([name, total]) => ({ name, total })));
+        } else {
+          // Group by month
+          const months: Record<string, number> = {};
+          monthNames.forEach(m => { months[m] = 0; });
+          chartOrders?.forEach((o: any) => {
+            const d = new Date(o.created_at);
+            const key = monthNames[d.getMonth()];
+            months[key] += getOrderAmount(o);
+          });
+          setRevenueChartData(Object.entries(months).map(([name, total]) => ({ name, total })));
+        }
+      } catch (err) {
+        console.error('Revenue chart error:', err);
+      }
+    };
+    
+    if (!isLoading) buildRevenueChart();
+  }, [isLoading, revenueFilter, orders]);
+
+  // Build check-in chart data based on filter
+  useEffect(() => {
+    const buildCheckinChart = async () => {
+      try {
+        const now = new Date();
+        const monthNames = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
+        
+        const { data: allCheckins } = await supabase.from('fitnexus_checkins').select('*');
+        
+        if (checkinFilter === 'week') {
+          // Last 7 days
+          const startDate = new Date(now);
+          startDate.setDate(now.getDate() - 6);
+          const grouped: Record<string, number> = {};
+          const dayLabels = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+          for (let i = 0; i < 7; i++) {
+            const d = new Date(startDate);
+            d.setDate(startDate.getDate() + i);
+            const key = dayLabels[d.getDay()];
+            grouped[key] = 0;
+          }
+          allCheckins?.forEach((c: any) => {
+            const d = new Date(c.created_at || c.date);
+            if (d >= startDate && d <= now) {
+              const dayLabel = dayLabels[d.getDay()];
+              if (grouped[dayLabel] !== undefined) {
+                grouped[dayLabel]++;
+              }
+            }
+          });
+          setCheckinChartData(Object.entries(grouped).map(([name, count]) => ({ name, count })));
+        } else if (checkinFilter === 'month') {
+          // Group by week of current month
+          const weeks: Record<string, number> = { 'Tuần 1': 0, 'Tuần 2': 0, 'Tuần 3': 0, 'Tuần 4': 0, 'Tuần 5': 0 };
+          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+          allCheckins?.forEach((c: any) => {
+            const d = new Date(c.created_at || c.date);
+            if (d >= startOfMonth && d <= now) {
+              const weekNum = Math.ceil(d.getDate() / 7);
+              const key = `Tuần ${Math.min(weekNum, 5)}`;
+              weeks[key]++;
+            }
+          });
+          setCheckinChartData(Object.entries(weeks).map(([name, count]) => ({ name, count })));
+        } else {
+          // Group by month
+          const months: Record<string, number> = {};
+          monthNames.forEach(m => { months[m] = 0; });
+          const startOfYear = new Date(now.getFullYear(), 0, 1);
+          allCheckins?.forEach((c: any) => {
+            const d = new Date(c.created_at || c.date);
+            if (d >= startOfYear && d <= now) {
+              const key = monthNames[d.getMonth()];
+              months[key]++;
+            }
+          });
+          setCheckinChartData(Object.entries(months).map(([name, count]) => ({ name, count })));
+        }
+      } catch (err) {
+        console.error('Checkin chart error:', err);
+      }
+    };
+    
+    if (!isLoading) buildCheckinChart();
+  }, [isLoading, checkinFilter]);
 
   const handleSavePlan = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -576,12 +841,9 @@ export default function AdminPage() {
               <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-primary">
                 <Users className="w-6 h-6" />
               </div>
-              <span className="text-green-400 text-sm font-bold flex items-center gap-1">
-                <TrendingUp className="w-4 h-4" /> +12%
-              </span>
             </div>
             <p className="text-slate-400 text-sm font-medium mb-1">Tổng số hội viên</p>
-            <h3 className="text-3xl font-black text-white">{users.length > 0 ? users.length : '1,245'}</h3>
+            <h3 className="text-3xl font-black text-white">{overviewStats.totalUsers}</h3>
           </div>
 
           <div className="bg-surface-dark border border-white/10 rounded-2xl p-6 hover:border-accent/30 transition-colors">
@@ -589,12 +851,14 @@ export default function AdminPage() {
               <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center text-accent">
                 <DollarSign className="w-6 h-6" />
               </div>
-              <span className="text-green-400 text-sm font-bold flex items-center gap-1">
-                <TrendingUp className="w-4 h-4" /> +8%
-              </span>
+              {overviewStats.paidOrdersThisMonth > 0 && (
+                <span className="text-green-400 text-xs font-bold bg-green-400/10 px-2 py-1 rounded-full">
+                  {overviewStats.paidOrdersThisMonth} đơn
+                </span>
+              )}
             </div>
             <p className="text-slate-400 text-sm font-medium mb-1">Doanh thu tháng này</p>
-            <h3 className="text-3xl font-black text-white">{plans.length > 0 ? '125.5M' : '0'}</h3>
+            <h3 className="text-3xl font-black text-white">{formatVNDShort(overviewStats.monthRevenue)}</h3>
           </div>
 
           <div className="bg-surface-dark border border-white/10 rounded-2xl p-6 hover:border-blue-500/30 transition-colors">
@@ -602,12 +866,9 @@ export default function AdminPage() {
               <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
                 <Activity className="w-6 h-6" />
               </div>
-              <span className="text-green-400 text-sm font-bold flex items-center gap-1">
-                <TrendingUp className="w-4 h-4" /> +24%
-              </span>
             </div>
             <p className="text-slate-400 text-sm font-medium mb-1">Lượt check-in hôm nay</p>
-            <h3 className="text-3xl font-black text-white">{users.length > 0 ? '342' : '0'}</h3>
+            <h3 className="text-3xl font-black text-white">{overviewStats.todayCheckins}</h3>
           </div>
 
           <div className="bg-surface-dark border border-white/10 rounded-2xl p-6 hover:border-purple-500/30 transition-colors">
@@ -615,12 +876,9 @@ export default function AdminPage() {
               <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400">
                 <CalendarIcon className="w-6 h-6" />
               </div>
-              <span className="text-red-400 text-sm font-bold flex items-center gap-1">
-                <TrendingUp className="w-4 h-4 rotate-180" /> -2%
-              </span>
             </div>
             <p className="text-slate-400 text-sm font-medium mb-1">Lớp học đang diễn ra</p>
-            <h3 className="text-3xl font-black text-white">{trainers.length > 0 ? trainers.length * 2 : '0'}</h3>
+            <h3 className="text-3xl font-black text-white">{overviewStats.activeClasses}</h3>
           </div>
         </div>
 
@@ -631,14 +889,20 @@ export default function AdminPage() {
           <div className="bg-surface-dark border border-white/10 rounded-2xl p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-white">Biểu đồ doanh thu</h2>
-              <select className="bg-background-dark border border-white/10 text-slate-300 text-sm rounded-lg px-3 py-1 focus:outline-none focus:border-accent">
-                <option>Năm nay</option>
-                <option>Năm ngoái</option>
+              <select 
+                value={revenueFilter}
+                onChange={(e) => setRevenueFilter(e.target.value as 'week' | 'month' | 'year')}
+                className="bg-background-dark border border-white/10 text-slate-300 text-sm rounded-lg px-3 py-1 focus:outline-none focus:border-accent"
+              >
+                <option value="week">Tuần này</option>
+                <option value="month">Tháng này</option>
+                <option value="year">Năm nay</option>
               </select>
             </div>
             <div className="h-[300px] w-full">
+              {revenueChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={revenueData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <AreaChart data={revenueChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#c6102e" stopOpacity={0.3}/>
@@ -647,7 +911,7 @@ export default function AdminPage() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
                   <XAxis dataKey="name" stroke="#ffffff50" axisLine={false} tickLine={false} />
-                  <YAxis stroke="#ffffff50" axisLine={false} tickLine={false} tickFormatter={(value) => `${value / 1000000}M`} />
+                  <YAxis stroke="#ffffff50" axisLine={false} tickLine={false} tickFormatter={(value) => formatVNDShort(value)} />
                   <Tooltip 
                     contentStyle={{ backgroundColor: '#151619', borderColor: '#ffffff10', borderRadius: '8px' }}
                     itemStyle={{ color: '#c6102e', fontWeight: 'bold' }}
@@ -656,21 +920,30 @@ export default function AdminPage() {
                   <Area type="monotone" dataKey="total" stroke="#c6102e" strokeWidth={3} fillOpacity={1} fill="url(#colorTotal)" />
                 </AreaChart>
               </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-slate-500">Chưa có dữ liệu doanh thu</div>
+              )}
             </div>
           </div>
 
           {/* Check-ins Chart */}
           <div className="bg-surface-dark border border-white/10 rounded-2xl p-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-white">Lượt tập theo ngày</h2>
-              <select className="bg-background-dark border border-white/10 text-slate-300 text-sm rounded-lg px-3 py-1 focus:outline-none focus:border-accent">
-                <option>Tuần này</option>
-                <option>Tuần trước</option>
+              <h2 className="text-xl font-bold text-white">Lượt check-in</h2>
+              <select 
+                value={checkinFilter}
+                onChange={(e) => setCheckinFilter(e.target.value as 'week' | 'month' | 'year')}
+                className="bg-background-dark border border-white/10 text-slate-300 text-sm rounded-lg px-3 py-1 focus:outline-none focus:border-accent"
+              >
+                <option value="week">Tuần này</option>
+                <option value="month">Tháng này</option>
+                <option value="year">Năm nay</option>
               </select>
             </div>
             <div className="h-[300px] w-full">
+              {checkinChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={checkinData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <BarChart data={checkinChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
                   <XAxis dataKey="name" stroke="#ffffff50" axisLine={false} tickLine={false} />
                   <YAxis stroke="#ffffff50" axisLine={false} tickLine={false} />
@@ -682,6 +955,9 @@ export default function AdminPage() {
                   <Bar dataKey="count" fill="#d4af37" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-slate-500">Chưa có dữ liệu check-in</div>
+              )}
             </div>
           </div>
         </div>
@@ -1303,7 +1579,14 @@ create table fitnexus_orders (
                         <td className="p-4 font-mono text-xs">{order.id}</td>
                         <td className="p-4">{order.user_email}</td>
                         <td className="p-4 font-medium text-white">{order.plan_name}</td>
-                        <td className="p-4 text-accent font-bold">{order.amount}</td>
+                        <td className="p-4 text-accent font-bold">{(() => {
+                          let amt = parsePriceToNumber(order.amount || '0');
+                          if (amt < 10000 && order.plan_name) {
+                            const planMatch = plans.find((p: any) => p.name?.toLowerCase() === order.plan_name?.toLowerCase());
+                            if (planMatch) amt = parsePriceToNumber(planMatch.price);
+                          }
+                          return amt > 0 ? amt.toLocaleString('vi-VN') + 'đ' : order.amount;
+                        })()}</td>
                         <td className="p-4 text-sm">{new Date(order.created_at).toLocaleDateString('vi-VN')}</td>
                         <td className="p-4">
                           <span className={`px-2 py-1 rounded text-xs font-bold border ${

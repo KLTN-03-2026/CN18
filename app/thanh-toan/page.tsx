@@ -46,23 +46,45 @@ function ThanhToanContent() {
           const planData = data[0];
           setPlanKey(planData.id.toString());
           
-          // Format price if it's just a number
-          let priceStr = planData.price;
-          if (!priceStr.includes('đ') && !priceStr.includes('K')) {
-             priceStr = priceStr + 'đ';
-          }
+          // Parse price from various formats: "2.5Trđ", "500K", "2500000", "2,500,000đ", etc.
+          const parsePriceToNumber = (priceStr: string): number => {
+            if (!priceStr) return 0;
+            const str = priceStr.toString().trim();
+            
+            // Handle "Trđ" / "Tr" format (e.g., "2.5Trđ" = 2,500,000)
+            if (str.includes('Tr')) {
+              const num = parseFloat(str.replace(/[^0-9.]/g, ''));
+              return isNaN(num) ? 0 : num * 1000000;
+            }
+            // Handle "K" format (e.g., "500K" = 500,000)
+            if (str.toUpperCase().includes('K')) {
+              const num = parseFloat(str.replace(/[^0-9.]/g, ''));
+              return isNaN(num) ? 0 : num * 1000;
+            }
+            // Handle "M" format (e.g., "2.5M" = 2,500,000)
+            if (str.toUpperCase().includes('M') && !str.includes('Tr')) {
+              const num = parseFloat(str.replace(/[^0-9.]/g, ''));
+              return isNaN(num) ? 0 : num * 1000000;
+            }
+            // Plain number or formatted like "2.500.000đ" or "2,500,000đ"
+            const cleaned = str.replace(/[^\d]/g, '');
+            return parseInt(cleaned) || 0;
+          };
           
-          // Calculate a fake original price for the UI
-          let originalPrice = '0đ';
-          const priceNum = parseInt(priceStr.replace(/\D/g, ''));
-          if (!isNaN(priceNum)) {
-             originalPrice = (priceNum * 1.4).toLocaleString('vi-VN') + 'đ';
-          }
+          const formatVND = (amount: number): string => {
+            return amount.toLocaleString('vi-VN') + 'đ';
+          };
+          
+          const priceNumber = parsePriceToNumber(planData.price);
+          const originalPriceNumber = Math.round(priceNumber * 1.4);
           
           setPlan({
             name: planData.name,
-            price: priceStr,
-            originalPrice: originalPrice
+            price: formatVND(priceNumber),
+            priceNumber: priceNumber,
+            originalPrice: formatVND(originalPriceNumber),
+            originalPriceNumber: originalPriceNumber,
+            duration: planData.duration || '1 tháng',
           });
         } else {
           setErrorMessage('Gói tập không tồn tại.');
@@ -138,13 +160,13 @@ function ThanhToanContent() {
   const calculateFinalPrice = () => {
     if (!plan) return '0đ';
     
-    let basePrice = parseInt(plan.price.replace(/\D/g, ''));
-    if (isNaN(basePrice)) return plan.price;
+    let basePrice = plan.priceNumber || 0;
+    if (basePrice === 0) return plan.price;
 
     if (appliedVoucher) {
       if (appliedVoucher.discount.includes('%')) {
         const percent = parseInt(appliedVoucher.discount.replace('%', ''));
-        basePrice = basePrice * (1 - percent / 100);
+        basePrice = Math.round(basePrice * (1 - percent / 100));
       } else if (appliedVoucher.discount.includes('K')) {
         const amount = parseInt(appliedVoucher.discount.replace('K', '')) * 1000;
         basePrice = Math.max(0, basePrice - amount);
@@ -408,7 +430,7 @@ function ThanhToanContent() {
           <div className="flex justify-between items-center pb-4 border-b border-white/10 mb-4">
             <div>
               <p className="font-bold text-lg text-white">Gói {plan.name}</p>
-              <p className="text-sm text-slate-400">Thời hạn: 1 tháng</p>
+              <p className="text-sm text-slate-400">Thời hạn: {plan.duration}</p>
             </div>
             <div className="text-right">
               <p className="text-sm text-slate-500 line-through">{plan.originalPrice}</p>
@@ -422,7 +444,7 @@ function ThanhToanContent() {
           </div>
           <div className="flex justify-between items-center text-sm text-accent mb-4 pb-4 border-b border-white/10">
             <span>Khuyến mãi Tết (-30%)</span>
-            <span>- {parseInt(plan.originalPrice.replace(/\D/g, '')) - parseInt(plan.price.replace(/\D/g, ''))}đ</span>
+            <span>- {((plan.originalPriceNumber || 0) - (plan.priceNumber || 0)).toLocaleString('vi-VN')}đ</span>
           </div>
 
           {/* Voucher Input */}
