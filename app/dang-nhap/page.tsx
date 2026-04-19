@@ -118,25 +118,21 @@ export default function DangNhapPage() {
   const handleOAuth = async (provider: 'google' | 'facebook') => {
     try {
       setError('');
+      setIsLoading(true);
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          skipBrowserRedirect: true,
-          redirectTo: `${window.location.origin}/auth/callback`
+          // Trực tiếp redirect (phổ biến và ổn định hơn popup cho mọi trình duyệt)
+          redirectTo: `${window.location.origin}/auth/callback`,
         }
       });
 
       if (error) throw error;
-
-      if (data?.url) {
-        const popup = window.open(data.url, 'oauth_popup', 'width=600,height=700');
-        if (!popup) {
-          setError('Vui lòng cho phép hiển thị popup (Cửa sổ bật lên) trên trình duyệt để đăng nhập.');
-        }
-      }
+      
     } catch (err: any) {
       console.error(err);
       setError(err.message || `Không thể kết nối với ${provider}`);
+      setIsLoading(false);
     }
   };
 
