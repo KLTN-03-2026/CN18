@@ -119,15 +119,13 @@ export default function DangNhapPage() {
     try {
       setError('');
       setIsLoading(true);
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          // Trực tiếp redirect (phổ biến và ổn định hơn popup cho mọi trình duyệt)
-          redirectTo: `${window.location.origin}/auth/callback`,
-        }
-      });
-
-      if (error) throw error;
+      
+      // Chuyển hướng đến trang đăng nhập giả lập tương ứng
+      if (provider === 'google') {
+        router.push('/auth/google');
+      } else if (provider === 'facebook') {
+        router.push('/auth/facebook');
+      }
       
     } catch (err: any) {
       console.error(err);

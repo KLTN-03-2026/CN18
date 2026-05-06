@@ -130,10 +130,10 @@ function MoMoContent() {
     return () => clearInterval(pollInterval);
   }, [orderId, paymentStatus, handleSuccess, order]);
 
-  // Phím tắt admin: Ctrl+Shift+P để xác nhận thanh toán
+  // Phím tắt admin: Ctrl+Shift+K để xác nhận thanh toán
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+      if (e.ctrlKey && e.shiftKey && e.key === 'K') {
         e.preventDefault();
         if (paymentStatus === 'pending' && order && !isProcessing) {
           setIsProcessing(true);

@@ -5,3 +5,11 @@ coverage/
 *.log
 .env*
 !.env.example
+*.docx
+*.md
+!README.md
+docx_content.txt
+extracted_images/
+docx_extracted/
+gen_mohinh_vatly.py
+*.mp4

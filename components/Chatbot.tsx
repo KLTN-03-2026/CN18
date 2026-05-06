@@ -11,7 +11,7 @@ type Message = {
 // ===== CƠ SỞ TRI THỨC GYMVERSE =====
 const KNOWLEDGE_BASE = {
   goiTap: {
-    keywords: ['gói', 'tập', 'giá', 'bao nhiêu', 'đăng ký', 'phí', 'tư vấn gói', 'membership', 'basic', 'premium', 'vip', 'elite', 'couple', 'đôi', 'cơ bản', 'nâng cao', 'tiền', 'chi phí', 'mua', 'thanh toán'],
+    keywords: ['gói tập', 'giá gói', 'giá tập', 'bao nhiêu tiền', 'đăng ký gói', 'phí tập', 'tư vấn gói', 'membership', 'basic', 'premium', 'vip', 'elite', 'couple', 'đôi', 'cơ bản', 'nâng cao', 'chi phí tập', 'mua gói', 'thanh toán gói', 'gói cơ bản', 'gói nâng cao', 'gói vip'],
     response: `💰 **CÁC GÓI TẬP TẠI GYMVERSE:**
 
 1️⃣ **Gói Cơ Bản (Basic)** - 299.000đ/tháng:
@@ -266,11 +266,50 @@ Sau khi đăng ký, bạn có thể:
   }
 };
 
+// Từ khóa ngoài chủ đề GymVerse (cả có dấu và không dấu)
+const OFF_TOPIC_KEYWORDS = [
+  // Tài chính
+  'giá vàng', 'gia vang', 'giá xăng', 'gia xang', 'giá dầu', 'gia dau',
+  'bitcoin', 'crypto', 'chứng khoán', 'chung khoan', 'cổ phiếu', 'co phieu',
+  // Thời tiết
+  'thời tiết', 'thoi tiet', 'dự báo', 'du bao',
+  // Thể thao (không phải gym)
+  'bóng đá', 'bong da', 'world cup', 'ngoại hạng', 'ngoai hang', 'champion', 'messi', 'ronaldo',
+  // Game
+  'game', 'liên quân', 'lien quan', 'free fire', 'valorant', 'minecraft',
+  // Giải trí
+  'phim', 'netflix', 'anime', 'manga', 'kpop', 'blackpink', 'bts',
+  // Chính trị
+  'chính trị', 'chinh tri', 'quốc hội', 'quoc hoi', 'tổng thống', 'tong thong', 'bầu cử', 'bau cu',
+  // Công nghệ (không liên quan gym)
+  'lập trình', 'lap trinh', 'python', 'javascript',
+  'iphone', 'samsung', 'laptop', 'điện thoại', 'dien thoai',
+  // Nấu ăn
+  'nấu ăn', 'nau an', 'công thức nấu', 'cong thuc nau', 'recipe',
+  // Tình cảm
+  'tình yêu', 'tinh yeu', 'người yêu', 'nguoi yeu', 'crush', 'hẹn hò', 'hen ho',
+  // Du lịch
+  'du lịch', 'du lich', 'khách sạn', 'khach san', 'vé máy bay', 've may bay',
+  // Học tập (không liên quan gym)
+  'thi đại học', 'thi dai hoc', 'điểm thi', 'diem thi',
+  // Việc làm
+  'lương', 'luong', 'tuyển dụng', 'tuyen dung', 'phỏng vấn', 'phong van',
+  // AI khác
+  'chatgpt', 'gpt', 'claude',
+];
+
+const OFF_TOPIC_RESPONSES = [
+  `Câu hỏi này nằm ngoài chuyên môn của mình rồi 😄 Mình là trợ lý của **GymVerse** nên chỉ chuyên tư vấn về thể hình, gói tập và lịch tập thôi nhé!\n\nBạn có muốn mình tư vấn gì về tập luyện không? 💪`,
+  `Hmm, mình không rành vấn đề này lắm 😅 Chuyên môn của mình là tư vấn **dịch vụ phòng tập GymVerse** thôi nha!\n\nThay vào đó, bạn muốn tìm hiểu về gói tập hay lớp tập nhóm không? 🏋️`,
+  `Cái này mình không biết nhiều đâu 😄 Mình chuyên về **GymVerse** – gói tập, HLV, lịch tập, cơ sở vật chất...\n\nBạn có thắc mắc gì về tập luyện không? Mình sẵn sàng hỗ trợ! 💪🔥`,
+];
+
 // Tìm câu trả lời phù hợp nhất từ cơ sở tri thức
 function findBestResponse(userMessage: string): string {
   const msg = userMessage.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const msgOriginal = userMessage.toLowerCase();
   
+  // BƯỚC 1: Kiểm tra on-topic (GymVerse) TRƯỚC
   let bestMatch = { key: '', score: 0 };
   
   for (const [key, data] of Object.entries(KNOWLEDGE_BASE)) {
@@ -287,8 +326,18 @@ function findBestResponse(userMessage: string): string {
     }
   }
   
+  // Nếu match on-topic → trả lời chi tiết (ưu tiên cao nhất)
   if (bestMatch.score > 0) {
     return KNOWLEDGE_BASE[bestMatch.key as keyof typeof KNOWLEDGE_BASE].response;
+  }
+  
+  // BƯỚC 2: Nếu không match on-topic → kiểm tra off-topic
+  const isOffTopic = OFF_TOPIC_KEYWORDS.some(kw => 
+    msgOriginal.includes(kw) || msg.includes(kw.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
+  );
+  
+  if (isOffTopic) {
+    return OFF_TOPIC_RESPONSES[Math.floor(Math.random() * OFF_TOPIC_RESPONSES.length)];
   }
   
   // Fallback: trả lời chung khi không tìm thấy từ khóa

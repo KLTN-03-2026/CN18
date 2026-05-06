@@ -2,23 +2,15 @@
 
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { Calendar, Clock, MapPin, User, CheckCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Calendar, Clock, MapPin, User, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 
 import { CLASSES_DATA } from '@/lib/mock-data';
 
-const DAYS = [
-  { day: 'Thứ 2', date: '23/02' },
-  { day: 'Thứ 3', date: '24/02' },
-  { day: 'Thứ 4', date: '25/02' },
-  { day: 'Thứ 5', date: '26/02' },
-  { day: 'Thứ 6', date: '27/02' },
-  { day: 'Thứ 7', date: '28/02' },
-  { day: 'CN', date: '01/03' },
-];
-
 const FILTERS = ['Tất cả', 'Yoga', 'Zumba', 'Body Pump', 'Cycling', 'Pilates', 'HIIT'];
+
+const DAY_NAMES = ['CN', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
 
 const COLOR_MAP: Record<string, { bg: string, text: string, border: string }> = {
   blue: { bg: 'bg-blue-500/20', text: 'text-blue-400', border: 'border-blue-500/30' },
@@ -30,13 +22,75 @@ const COLOR_MAP: Record<string, { bg: string, text: string, border: string }> = 
   default: { bg: 'bg-slate-500/20', text: 'text-slate-400', border: 'border-slate-500/30' }
 };
 
+// Tính ngày đầu tuần (Thứ 2) từ một ngày bất kỳ
+function getMonday(d: Date): Date {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  date.setDate(diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+// Format ngày: DD/MM
+function formatDate(d: Date): string {
+  return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+}
+
+// Lấy tên tháng tiếng Việt
+function getMonthName(d: Date): string {
+  const months = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
+    'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
+  return months[d.getMonth()];
+}
+
 export default function LichTapPage() {
   const [activeFilter, setActiveFilter] = useState('Tất cả');
-  const [activeDay, setActiveDay] = useState('Thứ 2');
   const [bookedClasses, setBookedClasses] = useState<number[]>([]);
   const [classes, setClasses] = useState<any[]>(CLASSES_DATA);
   const [user, setUser] = useState<any>(null);
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+
+  // Tuần hiện tại: weekOffset = 0 là tuần này, -1 tuần trước, +1 tuần sau
+  const [weekOffset, setWeekOffset] = useState(0);
+
+  // Tính 7 ngày trong tuần dựa trên weekOffset
+  const weekDays = useMemo(() => {
+    const today = new Date();
+    const monday = getMonday(today);
+    monday.setDate(monday.getDate() + weekOffset * 7);
+
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const dayIndex = d.getDay(); // 0=CN, 1=Thứ 2, ...
+      return {
+        day: DAY_NAMES[dayIndex],
+        date: formatDate(d),
+        fullDate: d,
+        isToday: d.toDateString() === today.toDateString(),
+      };
+    });
+  }, [weekOffset]);
+
+  // Tên tháng hiển thị
+  const weekLabel = useMemo(() => {
+    const firstDay = weekDays[0].fullDate;
+    const lastDay = weekDays[6].fullDate;
+    if (firstDay.getMonth() === lastDay.getMonth()) {
+      return `${getMonthName(firstDay)}, ${firstDay.getFullYear()}`;
+    }
+    return `${getMonthName(firstDay)} - ${getMonthName(lastDay)}, ${lastDay.getFullYear()}`;
+  }, [weekDays]);
+
+  // Mặc định chọn ngày hôm nay (nếu nằm trong tuần hiện tại)
+  const [activeDayIndex, setActiveDayIndex] = useState(() => {
+    const today = new Date().getDay();
+    // Chuyển từ 0-6 (CN-T7) sang index 0-6 (T2-CN)
+    return today === 0 ? 6 : today - 1;
+  });
+
+  const activeDay = weekDays[activeDayIndex]?.day || 'Thứ 2';
 
   useEffect(() => {
     const fetchClasses = async () => {
@@ -121,8 +175,6 @@ export default function LichTapPage() {
   }, []);
 
   const handleBookClass = async (classId: number) => {
-    console.log('handleBookClass called for:', classId);
-    console.log('User:', user);
     if (!user) {
       setMessage({ type: 'error', text: 'Vui lòng đăng nhập để đặt lịch tập.' });
       setTimeout(() => setMessage(null), 3000);
@@ -131,12 +183,10 @@ export default function LichTapPage() {
     }
 
     if (bookedClasses.includes(classId)) {
-      console.log('Class already booked');
       return;
     }
     
     try {
-      console.log('Attempting to book for user:', user.email);
       const today = new Date().toISOString().split('T')[0];
       const { error } = await supabase
         .from('fitnexus_bookings')
@@ -154,7 +204,6 @@ export default function LichTapPage() {
         return;
       }
       
-      console.log('Booking successful, updating class count...');
       // Update booked count in class
       const cls = classes.find(c => c.id === classId);
       if (cls) {
@@ -195,7 +244,7 @@ export default function LichTapPage() {
       {message && (
         <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
           <div className={`px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 ${message.type === 'success' ? 'bg-green-500/90 text-white shadow-green-500/20' : 'bg-red-500/90 text-white shadow-red-500/20'} backdrop-blur-md`}>
-            <div className={`w-2 h-2 rounded-full ${message.type === 'success' ? 'bg-white' : 'bg-white'} animate-pulse`}></div>
+            <div className={`w-2 h-2 rounded-full bg-white animate-pulse`}></div>
             <p className="font-medium">{message.text}</p>
           </div>
         </div>
@@ -250,20 +299,56 @@ export default function LichTapPage() {
             </div>
           </div>
 
+          {/* Week Navigation */}
+          <div className="flex items-center justify-between mb-4">
+            <button 
+              onClick={() => setWeekOffset(prev => prev - 1)}
+              className="flex items-center gap-1 px-4 py-2 rounded-lg bg-surface-dark border border-white/10 text-slate-300 hover:text-white hover:border-accent/50 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span className="text-sm font-medium hidden sm:inline">Tuần trước</span>
+            </button>
+            
+            <div className="text-center">
+              <h3 className="text-white font-bold text-lg">{weekLabel}</h3>
+              {weekOffset !== 0 && (
+                <button 
+                  onClick={() => { setWeekOffset(0); setActiveDayIndex(new Date().getDay() === 0 ? 6 : new Date().getDay() - 1); }}
+                  className="text-accent text-xs hover:underline mt-1"
+                >
+                  ← Về tuần hiện tại
+                </button>
+              )}
+            </div>
+            
+            <button 
+              onClick={() => setWeekOffset(prev => prev + 1)}
+              className="flex items-center gap-1 px-4 py-2 rounded-lg bg-surface-dark border border-white/10 text-slate-300 hover:text-white hover:border-accent/50 transition-colors"
+            >
+              <span className="text-sm font-medium hidden sm:inline">Tuần sau</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+
           {/* Days Tabs */}
           <div className="flex overflow-x-auto md:grid md:grid-cols-7 gap-2 mb-8 pb-2 scrollbar-hide">
-            {DAYS.map((item, idx) => (
+            {weekDays.map((item, idx) => (
               <button 
                 key={idx}
-                onClick={() => setActiveDay(item.day)}
+                onClick={() => setActiveDayIndex(idx)}
                 className={`flex flex-col items-center justify-center py-3 px-4 md:px-0 min-w-[80px] rounded-xl border transition-all ${
-                  activeDay === item.day 
+                  activeDayIndex === idx 
                     ? 'bg-accent/10 border-accent text-accent shadow-[0_0_15px_rgba(212,175,55,0.15)]' 
-                    : 'bg-surface-dark border-white/5 text-slate-400 hover:bg-white/5 hover:text-white'
+                    : item.isToday && weekOffset === 0
+                      ? 'bg-primary/10 border-primary/50 text-primary hover:bg-primary/20'
+                      : 'bg-surface-dark border-white/5 text-slate-400 hover:bg-white/5 hover:text-white'
                 }`}
               >
                 <span className="text-xs font-medium mb-1 whitespace-nowrap">{item.day}</span>
-                <span className={`text-lg font-black ${activeDay === item.day ? 'text-white' : ''}`}>{item.date}</span>
+                <span className={`text-lg font-black ${activeDayIndex === idx ? 'text-white' : ''}`}>{item.date}</span>
+                {item.isToday && weekOffset === 0 && (
+                  <span className="text-[10px] text-accent font-bold mt-0.5">Hôm nay</span>
+                )}
               </button>
             ))}
           </div>
@@ -330,7 +415,6 @@ export default function LichTapPage() {
                       ) : (
                         <button 
                           onClick={() => {
-                            console.log('Button clicked for class:', cls.id);
                             handleBookClass(cls.id);
                           }}
                           className="w-full py-2 bg-accent text-background-dark font-bold rounded-lg hover:bg-accent-light transition-colors shadow-lg shadow-accent/20"

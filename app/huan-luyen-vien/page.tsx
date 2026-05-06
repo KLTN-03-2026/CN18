@@ -152,6 +152,27 @@ const TAG_COLORS: Record<string, string> = {
   default: 'bg-primary/10 text-primary ring-primary/20',
 };
 
+// Map tên HLV -> ảnh riêng (dùng khi DB không có cột image)
+const TRAINER_IMAGE_MAP: Record<string, string> = {
+  'Trần Quốc Cường': '/trainers/cuong.png',
+  'Nguyễn Thị Mai': '/trainers/mai.png',
+  'Kim Min-ho': '/trainers/minho.png',
+  'Yuki Tanaka': '/trainers/yuki.png',
+  'Marcus Adebayo': '/trainers/marcus.png',
+  'Aisha Bello': '/trainers/aisha.png',
+  'Alexander Schmidt': '/trainers/alexander.png',
+  'Sarah Jenkins': '/trainers/sarah.png',
+  'Mateo Silva': '/trainers/mateo.png',
+  'Li Wei-Hsuan': '/trainers/liwei.png',
+};
+
+function getTrainerImage(trainer: any): string {
+  // Ưu tiên: DB image -> map theo tên -> fallback
+  if (trainer.image && trainer.image !== '') return trainer.image;
+  if (TRAINER_IMAGE_MAP[trainer.name]) return TRAINER_IMAGE_MAP[trainer.name];
+  return '/trainers/cuong.png';
+}
+
 export default function HuanLuyenVienPage() {
   const [trainers, setTrainers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -266,7 +287,7 @@ export default function HuanLuyenVienPage() {
                     <div className="relative aspect-[3/4] w-full overflow-hidden">
                       <div className="absolute inset-0 bg-gradient-to-t from-[#221114] via-transparent to-transparent opacity-60 z-10 transition-opacity group-hover:opacity-40"></div>
                       <Image
-                        src={trainer.image || '/trainers/cuong.png'}
+                        src={getTrainerImage(trainer)}
                         alt={`HLV ${trainer.name}`}
                         fill
                         className="object-cover object-top transition-transform duration-700 group-hover:scale-110"
