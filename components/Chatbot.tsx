@@ -212,7 +212,7 @@ Bạn muốn tập theo hướng nào? Mình sẽ giới thiệu chi tiết hơn
   },
 
   chao: {
-    keywords: ['xin chào', 'chào', 'hello', 'hi', 'hey', 'hola', 'ê', 'ơi', 'có ai không'],
+    keywords: ['xin chào', 'chào bạn', 'chào gym', 'chào gymverse', 'hello', 'hi gymverse', 'hey gymverse', 'có ai không', 'alo'],
     response: `👋 Chào bạn! Rất vui được gặp bạn tại **GymVerse**! 😊
 
 Mình có thể hỗ trợ bạn:
@@ -266,50 +266,93 @@ Sau khi đăng ký, bạn có thể:
   }
 };
 
-// Từ khóa ngoài chủ đề GymVerse (cả có dấu và không dấu)
-const OFF_TOPIC_KEYWORDS = [
-  // Tài chính
-  'giá vàng', 'gia vang', 'giá xăng', 'gia xang', 'giá dầu', 'gia dau',
-  'bitcoin', 'crypto', 'chứng khoán', 'chung khoan', 'cổ phiếu', 'co phieu',
-  // Thời tiết
-  'thời tiết', 'thoi tiet', 'dự báo', 'du bao',
-  // Thể thao (không phải gym)
-  'bóng đá', 'bong da', 'world cup', 'ngoại hạng', 'ngoai hang', 'champion', 'messi', 'ronaldo',
-  // Game
-  'game', 'liên quân', 'lien quan', 'free fire', 'valorant', 'minecraft',
-  // Giải trí
-  'phim', 'netflix', 'anime', 'manga', 'kpop', 'blackpink', 'bts',
-  // Chính trị
-  'chính trị', 'chinh tri', 'quốc hội', 'quoc hoi', 'tổng thống', 'tong thong', 'bầu cử', 'bau cu',
-  // Công nghệ (không liên quan gym)
-  'lập trình', 'lap trinh', 'python', 'javascript',
-  'iphone', 'samsung', 'laptop', 'điện thoại', 'dien thoai',
-  // Nấu ăn
-  'nấu ăn', 'nau an', 'công thức nấu', 'cong thuc nau', 'recipe',
-  // Tình cảm
-  'tình yêu', 'tinh yeu', 'người yêu', 'nguoi yeu', 'crush', 'hẹn hò', 'hen ho',
-  // Du lịch
-  'du lịch', 'du lich', 'khách sạn', 'khach san', 'vé máy bay', 've may bay',
-  // Học tập (không liên quan gym)
-  'thi đại học', 'thi dai hoc', 'điểm thi', 'diem thi',
-  // Việc làm
-  'lương', 'luong', 'tuyển dụng', 'tuyen dung', 'phỏng vấn', 'phong van',
-  // AI khác
-  'chatgpt', 'gpt', 'claude',
-];
+// ===== TRẢ LỜI THÔNG MINH THEO NGỮ CẢNH =====
 
-const OFF_TOPIC_RESPONSES = [
-  `Câu hỏi này nằm ngoài chuyên môn của mình rồi 😄 Mình là trợ lý của **GymVerse** nên chỉ chuyên tư vấn về thể hình, gói tập và lịch tập thôi nhé!\n\nBạn có muốn mình tư vấn gì về tập luyện không? 💪`,
-  `Hmm, mình không rành vấn đề này lắm 😅 Chuyên môn của mình là tư vấn **dịch vụ phòng tập GymVerse** thôi nha!\n\nThay vào đó, bạn muốn tìm hiểu về gói tập hay lớp tập nhóm không? 🏋️`,
-  `Cái này mình không biết nhiều đâu 😄 Mình chuyên về **GymVerse** – gói tập, HLV, lịch tập, cơ sở vật chất...\n\nBạn có thắc mắc gì về tập luyện không? Mình sẵn sàng hỗ trợ! 💪🔥`,
-];
+// Phân tích giá tiền trong câu hỏi
+function extractPrice(text: string): number | null {
+  const patterns = [
+    /([\d.,]+)\s*(?:nghìn|nghin|k|K)/,
+    /([\d.,]+)\s*(?:triệu|trieu|tr)/,
+    /([\d.,]+)\s*(?:đồng|dong|đ|d|vnd)/,
+  ];
+  for (const p of patterns) {
+    const m = text.match(p);
+    if (m) {
+      const num = parseFloat(m[1].replace(/[.,]/g, ''));
+      if (text.match(/triệu|trieu|tr/)) return num * 1000000;
+      if (text.match(/nghìn|nghin|k|K/)) return num * 1000;
+      return num;
+    }
+  }
+  const numOnly = text.match(/(\d{2,})/); 
+  if (numOnly) {
+    const n = parseInt(numOnly[1]);
+    if (n >= 100 && n <= 999) return n * 1000;
+    if (n >= 1000) return n;
+  }
+  return null;
+}
 
-// Tìm câu trả lời phù hợp nhất từ cơ sở tri thức
+// Trả lời chi tiết khi hỏi về giá cụ thể
+function handlePriceQuery(price: number): string {
+  if (price < 299000) {
+    return `💡 Mình hiểu bạn muốn tìm gói tập với mức giá khoảng **${price.toLocaleString('vi-VN')}đ** nhé!\n\nHiện tại bên GymVerse **chưa có gói tập ở mức giá này** ạ. Gói thấp nhất của bên mình là:\n\n🏷️ **Gói Cơ Bản (Basic) — 299.000đ/tháng:**\n• Tập tất cả thiết bị gym\n• Giờ tập: 5:00 – 22:00\n• Phòng tắm + tủ khóa cá nhân\n\nĐây là mức giá rất hợp lý so với chất lượng dịch vụ 5 sao của GymVerse rồi đó! 😊\n\n💡 **Mẹo tiết kiệm:** Dùng mã **NEWBIE2026** khi thanh toán để được giảm giá thêm nhé!\n\n👉 Bạn muốn tìm hiểu thêm về gói Basic hoặc các gói khác không?`;
+  }
+  if (price >= 299000 && price < 599000) {
+    return `👍 Với mức giá khoảng **${price.toLocaleString('vi-VN')}đ**, mình gợi ý cho bạn:\n\n🏷️ **Gói Cơ Bản (Basic) — 299.000đ/tháng:**\n• Tập tất cả thiết bị gym hiện đại\n• Giờ tập: 5:00 – 22:00\n• Phòng tắm cao cấp + tủ khóa cá nhân\n• Rất phù hợp cho bạn mới bắt đầu!\n\n💡 Nếu thêm chút ngân sách, bạn có thể nâng lên **Gói Premium (599K)** để được thêm:\n• Tham gia lớp Group X (Yoga, Zumba, HIIT)\n• 2 buổi PT miễn phí/tháng\n• Khăn tập + nước uống free\n\n👉 Bạn muốn đăng ký gói nào? Truy cập trang **Gói tập** nhé! 💪`;
+  }
+  if (price >= 599000 && price < 999000) {
+    return `🌟 Với ngân sách khoảng **${price.toLocaleString('vi-VN')}đ**, gói phù hợp nhất cho bạn là:\n\n🏷️ **Gói Nâng Cao (Premium) — 599.000đ/tháng:**\n• Tất cả quyền lợi Basic\n• Tham gia lớp Group X (Yoga, Zumba, HIIT...)\n• 2 buổi PT miễn phí/tháng\n• Khăn tập + nước uống miễn phí\n\nĐây là gói **best-seller** được nhiều hội viên yêu thích nhất! 🔥\n\n💡 Nếu muốn trải nghiệm cao cấp hơn, bạn có thể xem thêm **Gói VIP (999K)** với phòng xông hơi + PT cá nhân 4 buổi/tháng!\n\n👉 Truy cập trang **Gói tập** để đăng ký ngay nhé! 💪`;
+  }
+  return `✨ Với mức giá khoảng **${price.toLocaleString('vi-VN')}đ**, mình gợi ý gói cao cấp:\n\n🏷️ **Gói VIP (Elite) — 999.000đ/tháng:**\n• Tất cả quyền lợi Premium\n• PT cá nhân 4 buổi/tháng\n• Phòng xông hơi + Sauna\n• Ưu tiên đặt lớp + chế độ dinh dưỡng cá nhân\n\n💑 Hoặc **Gói Đôi (Couple) — 1.599.000đ/tháng** nếu bạn đi cùng bạn bè/người thân, tiết kiệm đến **399.000đ**!\n\n👉 Truy cập trang **Gói tập** để đăng ký ngay! 🏋️`;
+}
+
+// Trả lời ngắn gọn nhưng vẫn trả lời cho câu hỏi ngoài hệ thống
+const OFF_TOPIC_REPLIES: Record<string, string> = {
+  finance: `📈 Về giá vàng/xăng/chứng khoán thì mình không cập nhật real-time được ạ! Bạn có thể tra trên các trang tài chính như CafeF hay VnExpress nhé.\n\n💪 Nhưng nếu bạn muốn **"đầu tư cho sức khỏe"** thì GymVerse là lựa chọn tuyệt vời – gói tập chỉ từ **299K/tháng** thôi! Sức khỏe là tài sản quý nhất mà 😊`,
+  weather: `🌤️ Thời tiết hôm nay thì mình không rõ lắm, bạn check trên app thời tiết nhé!\n\n☔ Dù nắng hay mưa thì phòng tập GymVerse vẫn **mở cửa từ 5h–22h** mỗi ngày, tập trong nhà nên không lo thời tiết ảnh hưởng! 💪`,
+  sports: `⚽ Về bóng đá/thể thao thì mình theo dõi không nhiều lắm ạ!\n\nNhưng nếu bạn muốn **thể lực sung mãn để chơi thể thao** tốt hơn, bên mình có HLV chuyên về **sức bền & cardio** – đặc biệt là HLV **Aisha Bello** (⭐4.9) rất giỏi mảng này! 🏃`,
+  game: `🎮 Game thì mình không rành lắm đâu ạ 😄\n\nNhưng mà tập gym xong rồi chơi game sẽ **tỉnh táo và phản xạ tốt** hơn nhiều đấy! Nhiều hội viên bên mình cũng là game thủ, họ nói tập xong đánh rank lên hẳn 😆 Thử gói **Basic 299K** xem sao nhé!`,
+  entertainment: `🎬 Về phim ảnh/giải trí thì mình biết ít lắm ạ!\n\nNhưng bạn biết không, tập gym cũng rất giải trí đấy! Bên mình có lớp **Zumba Dance Party** 🎶 vừa nhảy vừa đốt mỡ cực vui – mỗi thứ 2 và thứ 7 luôn! Thử tham gia xem nhé 💃`,
+  politics: `🏛️ Về chính trị thì mình không bàn được ạ 😅\n\n💪 Mình chuyên về **sức khỏe và thể hình** thôi! Nếu bạn quan tâm đến việc nâng cao sức khỏe, mình sẵn sàng tư vấn gói tập phù hợp nhé!`,
+  tech: `💻 Về công nghệ/điện thoại thì mình không chuyên ạ!\n\nNhưng nói về **công nghệ tập luyện** thì GymVerse rất hiện đại: thiết bị nhập khẩu từ Mỹ và châu Âu, hệ thống AI chatbot tư vấn 24/7 (chính là mình đây 😄), thanh toán online qua MoMo/VNPAY... Muốn trải nghiệm không? 🏋️`,
+  cooking: `🍳 Nấu ăn thì mình không giỏi lắm ạ 😅\n\n🥗 Nhưng về **chế độ dinh dưỡng cho tập gym** thì mình tư vấn được! Hội viên VIP bên mình được HLV thiết kế **chế độ dinh dưỡng cá nhân** luôn đấy. Bạn muốn tìm hiểu gói VIP không?`,
+  love: `💕 Chuyện tình cảm thì mình xin phép không tư vấn được ạ 😄\n\n💪 Nhưng mà tập gym xong body đẹp thì **tự tin hơn** nhiều đấy! Rất nhiều hội viên bên mình sau vài tháng tập đã thay đổi hoàn toàn cả ngoại hình lẫn tinh thần. Gói **Premium 599K** là sự khởi đầu tuyệt vời! 🔥`,
+  travel: `✈️ Về du lịch/khách sạn thì mình không rõ lắm ạ!\n\nNhưng trước khi đi du lịch, tập luyện để có **thể lực tốt** rất quan trọng đấy! Bạn sẽ leo núi, bơi, đi bộ dễ dàng hơn nhiều. Đăng ký gói tập GymVerse ngay để chuẩn bị cho chuyến đi tiếp theo nào! 🏔️`,
+  study: `📚 Về học tập/thi cử thì mình không hỗ trợ được ạ!\n\n🧠 Nhưng nghiên cứu cho thấy **tập thể dục giúp tăng khả năng tập trung và ghi nhớ** rất tốt! Nhiều bạn sinh viên bên mình tập trước giờ học, hiệu quả cải thiện rõ rệt. Thử gói **Basic 299K/tháng** nhé! 💪`,
+  job: `💼 Về việc làm/lương bổng thì mình không nắm được ạ!\n\n😊 Nhưng nếu bạn muốn **làm việc trong ngành fitness**, GymVerse luôn tìm kiếm những bạn đam mê thể hình. Hoặc đơn giản là tập gym để **tự tin hơn khi phỏng vấn** – ngoại hình chỉnh chu cũng là lợi thế đấy! 💪`,
+  ai: `🤖 Mình là AI chatbot của **GymVerse** ạ, không phải ChatGPT hay Claude đâu 😄\n\nMình được thiết kế chuyên để tư vấn về **phòng tập GymVerse**: gói tập, HLV, lịch tập, cơ sở vật chất... Bạn hỏi gì về tập luyện mình đều giải đáp được nhé! 💪`,
+};
+
+const OFF_TOPIC_MAP: Record<string, string[]> = {
+  finance: ['giá vàng','gia vang','giá xăng','gia xang','giá dầu','gia dau','bitcoin','crypto','chứng khoán','chung khoan','cổ phiếu','co phieu','đầu tư','dau tu'],
+  weather: ['thời tiết','thoi tiet','dự báo','du bao','mưa','nắng','nong','lanh'],
+  sports: ['bóng đá','bong da','world cup','ngoại hạng','ngoai hang','messi','ronaldo','champion','tennis','bơi lội'],
+  game: ['game','liên quân','lien quan','free fire','valorant','minecraft','pubg','lol','rank'],
+  entertainment: ['phim','netflix','anime','manga','kpop','blackpink','bts','tiktok','youtube','ca sĩ','diễn viên'],
+  politics: ['chính trị','chinh tri','quốc hội','quoc hoi','tổng thống','tong thong','bầu cử','bau cu'],
+  tech: ['lập trình','lap trinh','python','javascript','iphone','samsung','laptop','điện thoại','dien thoai','macbook','android'],
+  cooking: ['nấu ăn','nau an','công thức nấu','cong thuc nau','recipe','món ăn','mon an'],
+  love: ['tình yêu','tinh yeu','người yêu','nguoi yeu','crush','hẹn hò','hen ho','yêu','chia tay'],
+  travel: ['du lịch','du lich','khách sạn','khach san','vé máy bay','ve may bay','đi chơi','di choi'],
+  study: ['thi đại học','thi dai hoc','điểm thi','diem thi','học bài','hoc bai','trường','truong'],
+  job: ['lương','luong','tuyển dụng','tuyen dung','phỏng vấn','phong van','xin việc','xin viec'],
+  ai: ['chatgpt','gpt','claude','copilot','bard','ai khác'],
+};
+
+// ===== HÀM TÌM CÂU TRẢ LỜI THÔNG MINH =====
 function findBestResponse(userMessage: string): string {
   const msg = userMessage.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const msgOriginal = userMessage.toLowerCase();
   
-  // BƯỚC 1: Kiểm tra on-topic (GymVerse) TRƯỚC
+  // BƯỚC 1: Phân tích giá tiền trước (ví dụ: "có gói 50K không?", "gói 500 nghìn")
+  const price = extractPrice(msgOriginal);
+  const hasPriceContext = price !== null && (msgOriginal.includes('gói') || msgOriginal.includes('giá') || msgOriginal.includes('tập') || msgOriginal.includes('phí') || msgOriginal.includes('tiền') || msgOriginal.includes('nghìn') || msgOriginal.includes('k ') || msgOriginal.match(/\d+k/));
+  if (hasPriceContext && price !== null) {
+    return handlePriceQuery(price);
+  }
+
+  // BƯỚC 2: Kiểm tra on-topic (Knowledge Base)
   let bestMatch = { key: '', score: 0 };
   
   for (const [key, data] of Object.entries(KNOWLEDGE_BASE)) {
@@ -318,7 +361,7 @@ function findBestResponse(userMessage: string): string {
       const kw = keyword.toLowerCase();
       const kwNormalized = kw.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       if (msgOriginal.includes(kw) || msg.includes(kwNormalized)) {
-        score += kw.length; // Từ khóa dài hơn = chính xác hơn
+        score += kw.length;
       }
     }
     if (score > bestMatch.score) {
@@ -326,32 +369,37 @@ function findBestResponse(userMessage: string): string {
     }
   }
   
-  // Nếu match on-topic → trả lời chi tiết (ưu tiên cao nhất)
   if (bestMatch.score > 0) {
     return KNOWLEDGE_BASE[bestMatch.key as keyof typeof KNOWLEDGE_BASE].response;
   }
   
-  // BƯỚC 2: Nếu không match on-topic → kiểm tra off-topic
-  const isOffTopic = OFF_TOPIC_KEYWORDS.some(kw => 
-    msgOriginal.includes(kw) || msg.includes(kw.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
-  );
-  
-  if (isOffTopic) {
-    return OFF_TOPIC_RESPONSES[Math.floor(Math.random() * OFF_TOPIC_RESPONSES.length)];
+  // BƯỚC 3: Nếu hỏi giá nhưng không có ngữ cảnh gói tập
+  if (price !== null) {
+    return handlePriceQuery(price);
   }
   
-  // Fallback: trả lời chung khi không tìm thấy từ khóa
-  return `Cảm ơn bạn đã hỏi! 😊
+  // BƯỚC 4: Off-topic → VẪN trả lời ngắn gọn, rồi dẫn về GymVerse
+  for (const [category, keywords] of Object.entries(OFF_TOPIC_MAP)) {
+    const isMatch = keywords.some(kw => 
+      msgOriginal.includes(kw) || msg.includes(kw.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
+    );
+    if (isMatch) {
+      return OFF_TOPIC_REPLIES[category] || OFF_TOPIC_REPLIES['ai'];
+    }
+  }
+  
+  // BƯỚC 5: Fallback thông minh
+  return `Cảm ơn bạn đã hỏi! 😊 Mình chưa hiểu rõ câu hỏi này lắm.
 
-Mình có thể hỗ trợ bạn về các chủ đề sau:
-1️⃣ **Gói tập & Giá cả** - Gõ "gói tập" hoặc "giá"
-2️⃣ **Huấn luyện viên** - Gõ "HLV" hoặc "huấn luyện viên"
-3️⃣ **Lịch lớp nhóm** - Gõ "lịch tập" hoặc "lớp nhóm"
-4️⃣ **Cơ sở vật chất** - Gõ "cơ sở" hoặc "thiết bị"
-5️⃣ **Khuyến mãi & Điểm thưởng** - Gõ "khuyến mãi" hoặc "voucher"
-6️⃣ **Đăng ký tài khoản** - Gõ "đăng ký"
+Mình là trợ lý AI của **GymVerse** và có thể hỗ trợ bạn về:
+1️⃣ **Gói tập & Giá cả** — "Gói nào rẻ nhất?", "Có gói 500K không?"
+2️⃣ **Huấn luyện viên** — "Tư vấn HLV tăng cơ"
+3️⃣ **Lịch lớp nhóm** — "Lịch tập Yoga", "Hôm nay có lớp gì?"
+4️⃣ **Cơ sở vật chất** — "Phòng tập có gì?"
+5️⃣ **Khuyến mãi** — "Có voucher gì không?"
+6️⃣ **Đăng ký / Liên hệ** — "Cách đăng ký?"
 
-Hoặc bạn có thể truy cập trang **Liên hệ** trên website để được tư vấn trực tiếp nhé! 💪`;
+Hoặc bạn cứ hỏi bất cứ điều gì, mình sẽ cố gắng giải đáp! 💪`;
 }
 
 // Quick suggestion chips
@@ -389,7 +437,19 @@ export default function Chatbot() {
     setIsLoading(true);
 
     try {
-      // Thử gọi API server-side (Gemini AI) trước
+      // BƯỚC 1: Dùng Knowledge Base thông minh trước
+      const kbResponse = findBestResponse(userMessage);
+      
+      // Nếu Knowledge Base đã có câu trả lời cụ thể (không phải fallback chung)
+      const isFallback = kbResponse.includes('Mình chưa hiểu rõ câu hỏi này lắm');
+      
+      if (!isFallback) {
+        // Trả lời từ Knowledge Base (on-topic chi tiết hoặc off-topic ngắn gọn)
+        setMessages(prev => [...prev, { role: 'assistant', content: kbResponse }]);
+        return;
+      }
+
+      // BƯỚC 2: Nếu KB không match → thử gọi Gemini AI
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -407,8 +467,7 @@ export default function Chatbot() {
 
       setMessages(prev => [...prev, { role: 'assistant', content: data.text }]);
     } catch {
-      // Fallback: Sử dụng cơ sở tri thức nội bộ (Knowledge Base)
-      // Đảm bảo chatbot LUÔN trả lời dù API có lỗi
+      // BƯỚC 3: Nếu Gemini cũng lỗi → dùng fallback KB
       const response = findBestResponse(userMessage);
       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
     } finally {
